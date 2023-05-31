@@ -9,7 +9,7 @@ Parameters:
   EnvironmentName:
     Description: An environment name that is prefixed to resource names
     Type: String
-    Default: luit 
+    Default: " "
 
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
@@ -54,12 +54,12 @@ Parameters:
   KeyPair:
     Description: Please enter a key pair name to use for EC2 instances
     Type: String
-    Default: luitproject
+    Default: " "
 
   MyIP: 
     Description: Please enter your IP to use to SSH into instances
     Type: String
-    Default: 24.162.52.74/32
+    Default: " "
 
   DBUsername:
     Description: Enter a username to be used with the RDS database
@@ -69,7 +69,7 @@ Parameters:
   DBPassword:
     Description: Enter a password to be used with the RDS database
     Type: String
-    Default: password
+    Default: " "
 
   
 ############################ VPC, IGW, NGW ##################################
