@@ -3,7 +3,8 @@ Description:  This template deploys a simple 3 tier archictecture across 2 avail
               private subnets for the data tier. It deploys EC2 auto scaling groups with ALBs for the web tier 
               and the application tier, and an RDS MySQL database in the data tier. All necessary security 
               groups are created, as well as launch templates for the ASGs. The web tier instances include user 
-              data that launches a simple test webpage. 
+              data that launches a simple test webpage. Also included is a bastion host that can be used to SSH 
+              into the web and application tier instances. 
               
 Parameters:
   EnvironmentName:
