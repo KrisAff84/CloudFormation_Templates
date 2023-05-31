@@ -10,7 +10,7 @@ Parameters:
   EnvironmentName:
     Description: An environment name that is prefixed to resource names
     Type: String
-    Default: " " 
+    Default: " "
 
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC
@@ -70,7 +70,7 @@ Parameters:
   DBPassword:
     Description: Enter a password to be used with the RDS database
     Type: String
-    Default: password
+    Default: " "
 
   
 ############################ VPC, IGW, NGW ##################################
@@ -606,33 +606,3 @@ Resources:
       Tags: 
         - Key: "Name"
           Value: "Bastion"
-
-
-########################### Outputs ############################
-
-
-Outputs:
-  VPC:
-    Description: A reference to the created VPC
-    Value: !Ref VPC
-
-  WebTierSubnets:
-    Description: A list of the web tier subnets
-    Value: !Join [ ",", [ !Ref WebTierSubnet1, !Ref WebTierSubnet2 ]]
-
-  AppTierSubnets:
-    Description: A list of the App Tier subnets
-    Value: !Join [ ",", [ !Ref AppTierSubnet1, !Ref AppTierSubnet2 ]]
-
-  DBTierSubnets:
-    Description: A list of the Data Tier subnets
-    Value: !Join [ ",", [ !Ref DataTierSubnet1, !Ref DataTierSubnet2 ]]
-
-  WebTierSubnet1:
-    Description: A reference to the public subnet in the 1st Availability Zone
-    Value: !Ref WebTierSubnet1
-
-  WebTierSubnet2:
-    Description: A reference to the public subnet in the 2nd Availability Zone
-    Value: !Ref WebTierSubnet2
-
