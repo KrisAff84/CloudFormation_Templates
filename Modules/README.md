@@ -1,0 +1,1 @@
+The templates within the modules folder are designed to be smaller and more manageable. Furthermore they are meant to be used together. The description section of each template will indicate which other template it imports values from. Hopefully this will help to avoid confusion in terms of which templates can be used together, and what order is required when deploying them. 
