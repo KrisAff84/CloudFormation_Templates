@@ -559,7 +559,7 @@ Resources:
 
   WebTierASG:
     Type: AWS::AutoScaling::AutoScalingGroup
-    DependsOn: InternetGateway 
+    DependsOn: InternetGatewayAttachment 
     Properties:
       AutoScalingGroupName: !Sub ${EnvironmentName}_WebTierASG
       LaunchTemplate:
@@ -576,7 +576,7 @@ Resources:
 
   AppTierASG:
     Type: AWS::AutoScaling::AutoScalingGroup
-    DependsOn: InternetGateway 
+    DependsOn: NatGateway 
     Properties:
       AutoScalingGroupName: !Sub ${EnvironmentName}_AppTierASG
       LaunchTemplate:
