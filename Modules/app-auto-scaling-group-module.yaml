@@ -1,0 +1,140 @@
+Description: This template deploys an app-tier auto scaling group with an ALB spanning 
+             across 2 subnets. It imports values from "3-tier-network-module.yaml"
+             and "web-auto-scaling-group-module.yaml"
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: " "
+
+  LatestAMI: 
+    Description: Enter the AMI of Amazon Linux AMI
+    Type: String
+    Default: ami-0715c1897453cabd1 
+
+  KeyPair:
+    Description: Please enter a key pair name to use for EC2 instances
+    Type: String
+    Default: " "
+
+Resources:
+  AppTierLTSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow inbound HTTP traffic and ping requests from web tier
+      GroupName: !Sub ${EnvironmentName}_AppTierLT_SG
+
+      VpcId: !ImportValue 3tier-VPC
+      SecurityGroupIngress:
+        - 
+          SourceSecurityGroupId: !Ref AppTierALBSecurityGroup
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+
+        -
+          SourceSecurityGroupId: !Ref AppTierALBSecurityGroup
+          FromPort: -1
+          IpProtocol: icmp
+          ToPort: -1
+
+  AppTierALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for App Tier ALB 
+      GroupName: !Sub ${EnvironmentName}_AppALB_SG
+
+      VpcId: !ImportValue 3tier-VPC
+
+      SecurityGroupIngress: 
+        - 
+          SourceSecurityGroupId: !ImportValue 3tier-WLTSecurityGroup
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+        - 
+          SourceSecurityGroupId: !ImportValue 3tier-WLTSecurityGroup
+          FromPort: -1
+          ToPort: -1
+          IpProtocol: icmp
+
+      SecurityGroupEgress:
+        -
+          CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+  AppTierALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-AppALB
+      Scheme: internal
+      Type: application
+      Subnets: 
+        - !ImportValue 3tier-ASubnet1
+        - !ImportValue 3tier-ASubnet2
+      SecurityGroups: 
+        - !Ref AppTierALBSecurityGroup
+      IpAddressType: ipv4
+            
+  AppHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref AppTierALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions: 
+        - 
+          TargetGroupArn: !Ref AppTargetGroup
+          Type: forward
+
+  AppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !ImportValue 3tier-VPC
+      Name: !Sub ${EnvironmentName}-AppTG
+      HealthCheckIntervalSeconds: 180
+      HealthCheckTimeoutSeconds: 60
+      UnhealthyThresholdCount: 5
+
+
+  AppTierLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}_AppTierLT
+      LaunchTemplateData:
+        ImageId: !Ref LatestAMI
+        InstanceType: t2.micro
+        KeyName: !Ref KeyPair
+        SecurityGroupIds: [!Ref AppTierLTSecurityGroup]
+
+  AppTierASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${EnvironmentName}_AppTierASG
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AppTierLaunchTemplate
+        Version: !GetAtt AppTierLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 3
+      DesiredCapacity: 2
+      VPCZoneIdentifier: [!ImportValue 3tier-ASubnet1, !ImportValue 3tier-ASubnet2]
+      TargetGroupARNs: [!Ref AppTargetGroup]
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300 
+      MetricsCollection:
+      - Granularity: 1Minute
+
+Outputs:
+  AppTierLTSecurityGroup:
+    Description: A reference to the app-tier launch template security group
+    Value: !Ref AppTierLTSecurityGroup
+    Export:
+      Name: 3tier-ALTSecurityGroup
+   

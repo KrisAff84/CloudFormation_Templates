@@ -1,0 +1,151 @@
+Description: This template deploys a web-tier auto scaling group with an ALB
+             spanning across 2 subnets. It imports values from "3-tier-network-module.yaml"
+
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: " "
+
+  LatestAMI: 
+    Description: Enter the AMI of Amazon Linux AMI
+    Type: String
+    Default: ami-0715c1897453cabd1 
+
+  KeyPair:
+    Description: Please enter a key pair name to use for EC2 instances
+    Type: String
+    Default: " "
+
+Resources:
+  WebTierLTSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow inbound HTTP traffic from Web Tier ALB and SSH from Bastion host
+      GroupName: !Sub ${EnvironmentName}_WebTierLT_SG
+
+      VpcId: !ImportValue 3tier-VPC
+      SecurityGroupIngress:
+        - 
+          SourceSecurityGroupId: !Ref WebTierALBSecurityGroup
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+
+  WebTierALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Web Tier ALB 
+      GroupName: !Sub ${EnvironmentName}_WebALB_SG
+
+      VpcId: !ImportValue 3tier-VPC
+      SecurityGroupIngress: 
+        - 
+          CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+      SecurityGroupEgress:
+        -
+          CidrIp: 0.0.0.0/0
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+  WebTierALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${EnvironmentName}-WebALB
+      Scheme: internet-facing
+      Type: application
+      Subnets: 
+        - !ImportValue 3tier-WSubnet1
+        - !ImportValue 3tier-WSubnet2
+      SecurityGroups: 
+        - !Ref WebTierALBSecurityGroup
+      IpAddressType: ipv4
+            
+  WebHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WebTierALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions: 
+        - 
+          TargetGroupArn: !Ref WebTargetGroup
+          Type: forward
+
+  WebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !ImportValue 3tier-VPC
+      Name: !Sub ${EnvironmentName}-WebTG
+      HealthCheckIntervalSeconds: 180
+      HealthCheckTimeoutSeconds: 60
+      UnhealthyThresholdCount: 5
+
+  WebTierLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}_WebTierLT
+      LaunchTemplateData:
+        ImageId: !Ref LatestAMI
+        InstanceType: t2.micro
+        KeyName: !Ref KeyPair
+        SecurityGroupIds: [!Ref WebTierLTSecurityGroup]
+        UserData: 
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            yum update -y
+            yum install -y httpd
+            systemctl start httpd
+            systemctl enable httpd
+            cat <<EOF > /var/www/html/index.html
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <title>Welcome to the Level Up in Tech Store!</title>
+                <style>
+                  body {
+                    background-color: #10045c;
+                  }
+                  h1 {
+                    text-align: center;
+                    color: white;
+                  }
+                </style>
+              </head>
+              <body>
+                <h1>Welcome to the Level Up in Tech Store!</h1>
+              </body>
+            </html>
+            EOF
+
+  WebTierASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${EnvironmentName}_WebTierASG
+      LaunchTemplate:
+        LaunchTemplateId: !Ref WebTierLaunchTemplate
+        Version: !GetAtt WebTierLaunchTemplate.LatestVersionNumber
+      MinSize: 2
+      MaxSize: 3
+      DesiredCapacity: 2
+      VPCZoneIdentifier: [!ImportValue 3tier-WSubnet1, !ImportValue 3tier-WSubnet2]
+      TargetGroupARNs: [!Ref WebTargetGroup]
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300 
+      MetricsCollection:
+      - Granularity: 1Minute
+
+Outputs:
+  WebTierLTSecurityGroup:
+    Description: A reference to the web-tier launch template security group
+    Value: !Ref WebTierLTSecurityGroup
+    Export:     
+      Name: 3tier-WLTSecurityGroup
