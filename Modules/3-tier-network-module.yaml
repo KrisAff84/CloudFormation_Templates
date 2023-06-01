@@ -1,7 +1,7 @@
 Description:  This template deploys a simple 3-tier network across 6 subnets within 2
               regions. It creates a VPC, a web-tier with 2 public subnets, an 
               application-tier with 2 private subnets, and a database-tier with 2 private 
-              subnets. When using with other templates the order or deployment should
+              subnets. When using with other templates the order of deployment should
               be as follows. 1.) This template, 2.) web-auto-scaling-group-module 3.)
               app-auto-scaling-group-module 4.) db-tier-module
               
