@@ -1,0 +1,296 @@
+Description:  This template deploys a simple 3-tier network across 6 subnets within 2
+              regions. It creates a VPC, a web-tier with 2 public subnets, an 
+              application-tier with 2 private subnets, and a database-tier with 2 private 
+              subnets. When using with other templates the order or deployment should
+              be as follows. 1.) This template, 2.) web-auto-scaling-group-module 3.)
+              app-auto-scaling-group-module 4.) db-tier-module
+              
+Parameters:
+  EnvironmentName:
+    Description: An environment name that is prefixed to resource names
+    Type: String
+    Default: " "
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.20.0.0/20
+
+  WebTierSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public (Web tier) subnet in the first Availability Zone
+    Type: String
+    Default: 10.20.0.0/24
+
+  WebTierSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public (Web tier) subnet in the second Availability Zone
+    Type: String
+    Default: 10.20.1.0/24
+
+  AppTierSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private (App tier) subnet in the first Availability Zone
+    Type: String
+    Default: 10.20.10.0/24
+
+  AppTierSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private (App tier) subnet in the second Availability Zone
+    Type: String
+    Default: 10.20.11.0/24
+
+  DataTierSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private (Data tier) subnet in the first Availability Zone
+    Type: String
+    Default: 10.20.12.0/24
+
+  DataTierSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private (Data tier) subnet in the second Availability Zone
+    Type: String
+    Default: 10.20.13.0/24
+
+#####################  Resources: VPC + Gateways ##########################
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_VPC 
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_IGW
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref WebTierSubnet1
+
+
+############################## Subnets ##################################### 
+
+
+  WebTierSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref WebTierSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_WebTier_A
+
+  WebTierSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref WebTierSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_WebTier_B
+
+  AppTierSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref AppTierSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_AppTier_A
+
+  AppTierSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref AppTierSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_AppTier_B
+
+  DataTierSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref DataTierSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_DataTier_A
+
+  DataTierSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref DataTierSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_DataTier_B
+
+
+  ########################### Route Tables & Routes #########################
+
+
+  WebTierRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_WebTierRT
+
+  AppTierRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_AppTierRT
+
+  DataTierRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}_DataTierRT
+
+  WebTierRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref WebTierRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  AppTierRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AppTierRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  DataTierRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref DataTierRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+  
+
+######################## Subnet RouteTable Associations #######################
+ 
+
+  WebTierSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WebTierRouteTable
+      SubnetId: !Ref WebTierSubnet1
+
+  WebTierSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WebTierRouteTable
+      SubnetId: !Ref WebTierSubnet2
+
+  AppTierSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AppTierRouteTable
+      SubnetId: !Ref AppTierSubnet1
+
+  AppTierSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AppTierRouteTable
+      SubnetId: !Ref AppTierSubnet2
+
+  DataTierSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref DataTierRouteTable
+      SubnetId: !Ref DataTierSubnet1
+
+  DataTierSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref DataTierRouteTable
+      SubnetId: !Ref DataTierSubnet2
+
+
+########################## Outputs #############################
+
+
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    Export:
+      Name: 3tier-VPC
+
+  WebTierSubnet1:
+    Description: A reference to the web-tier subnet in the 1st Availability Zone
+    Value: !Ref WebTierSubnet1
+    Export:
+      Name: 3tier-WSubnet1
+
+  WebTierSubnet2:
+    Description: A reference to the web-tier subnet in the 2nd Availability Zone
+    Value: !Ref WebTierSubnet2
+    Export: 
+      Name: 3tier-WSubnet2
+
+  AppTierSubnet1:
+    Description: A reference to the app-tier subnet in the 1st Availability Zone
+    Value: !Ref AppTierSubnet1
+    Export:
+      Name: 3tier-ASubnet1
+
+  AppTierSubnet2:
+    Description: A reference to the app-tier subnet in the 2nd Availability Zone
+    Value: !Ref AppTierSubnet2
+    Export: 
+      Name: 3tier-ASubnet2
+
+  DataTierSubnet1:
+    Description: A reference to the data-tier subnet in the 1st Availability Zone
+    Value: !Ref DataTierSubnet1
+    Export:
+      Name: 3tier-DSubnet1
+
+  DataTierSubnet2:
+    Description: A reference to the data-tier subnet in the 2nd Availability Zone
+    Value: !Ref DataTierSubnet2
+    Export: 
+      Name: 3tier-DSubnet2
+
+  InternetGateway:
+    Description: A reference to the internet gateway
+    Value: !Ref InternetGateway
+    Export:
+      Name: 3tier-IGW
